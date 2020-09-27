@@ -10,9 +10,28 @@
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
     <copyright> </copyright>
+    <lastBuildDate>Sun, 27 Sep 2020 12:57:44 -0400</lastBuildDate>
     
 	<atom:link href="https://l9o.dev/categories/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Blog</title>
+      <link>https://l9o.dev/categories/blog/</link>
+      <pubDate>Sun, 27 Sep 2020 12:57:44 -0400</pubDate>
+      
+      <guid>https://l9o.dev/categories/blog/</guid>
+      <description>
+        
+          
+          
+          
+        
+        
+        
+        
+        </description>
+    </item>
     
   </channel>
 </rss>

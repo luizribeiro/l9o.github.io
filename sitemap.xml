@@ -3,22 +3,33 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
+    <loc>https://l9o.dev/posts/bhugo-test/</loc>
+    <lastmod>2020-09-27T12:57:44-04:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://l9o.dev/categories/blog/</loc>
+    <lastmod>2020-09-27T12:57:44-04:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://l9o.dev/categories/</loc>
+    <lastmod>2020-09-27T12:57:44-04:00</lastmod>
+  </url>
+  
+  <url>
     <loc>https://l9o.dev/</loc>
-    <lastmod>2020-09-27T10:27:08-04:00</lastmod>
+    <lastmod>2020-09-27T12:57:44-04:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://l9o.dev/posts/</loc>
+    <lastmod>2020-09-27T12:57:44-04:00</lastmod>
   </url>
   
   <url>
     <loc>https://l9o.dev/posts/my-first-post/</loc>
     <lastmod>2020-09-27T10:27:08-04:00</lastmod>
-  </url>
-  
-  <url>
-    <loc>https://l9o.dev/posts/</loc>
-    <lastmod>2020-09-27T10:27:08-04:00</lastmod>
-  </url>
-  
-  <url>
-    <loc>https://l9o.dev/categories/</loc>
   </url>
   
   <url>
