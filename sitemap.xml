@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  
+  <url>
+    <loc>https://l9o.dev/</loc>
+    <lastmod>2020-09-27T10:27:08-04:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://l9o.dev/posts/my-first-post/</loc>
+    <lastmod>2020-09-27T10:27:08-04:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://l9o.dev/posts/</loc>
+    <lastmod>2020-09-27T10:27:08-04:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://l9o.dev/categories/</loc>
+  </url>
+  
+  <url>
+    <loc>https://l9o.dev/tags/</loc>
+  </url>
+  
+</urlset>
