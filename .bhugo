@@ -1,0 +1,5 @@
+DATABASE="/Users/luiz/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/database.sqlite"
+HUGO_DIR=.
+
+CONTENT_DIR=content/posts/
+IMAGE_DIR="/img"
