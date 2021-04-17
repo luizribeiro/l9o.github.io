@@ -72,6 +72,7 @@
 &lt;p>Once you’re connected to your Pi through SSH, enable my PPA repository:&lt;/p>
 &lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ curl -sL gpg.l9o.dev | sudo apt-key add -
 $ echo &lt;span style="color:#e6db74">&amp;#34;deb https://ppa.l9o.dev/raspbian ./&amp;#34;&lt;/span> | sudo tee /etc/apt/sources.list.d/l9o.list
+$ sudo apt update
 &lt;/code>&lt;/pre>&lt;/div>&lt;p>Then install the &lt;code>mariner3d&lt;/code> package:&lt;/p>
 &lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">$ sudo apt install mariner3d
 &lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="allow-the-printer-to-see-files-on-the-pi">Allow the printer to see files on the Pi&lt;/h3>
