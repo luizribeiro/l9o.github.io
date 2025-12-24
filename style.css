@@ -20,3 +20,37 @@ figure figcaption {
 .post-title::after {
   display: none;
 }
+
+table {
+  border: none;
+}
+
+table th,
+table td {
+  border: 1px dotted var(--foreground);
+}
+
+table thead th,
+table th {
+  border-bottom: 1px solid var(--foreground) !important;
+}
+
+table tr:first-child th,
+table tr:first-child td {
+  border-top: none;
+}
+
+table tr:last-child th,
+table tr:last-child td {
+  border-bottom: none;
+}
+
+table th:first-child,
+table td:first-child {
+  border-left: none;
+}
+
+table th:last-child,
+table td:last-child {
+  border-right: none;
+}
