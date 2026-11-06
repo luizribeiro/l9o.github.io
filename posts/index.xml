@@ -66,12 +66,15 @@
 &lt;li&gt;&lt;strong&gt;Feb 23, 2021&lt;/strong&gt;: Discussed mitigations with their R&amp;amp;D team&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Aug 24, 2021&lt;/strong&gt;: &lt;a href="https://siglentna.com/service-and-support/firmware-software/digital-oscilloscopes/"&gt;Firmware 6.1.37R2&lt;/a&gt; released with fixes&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Dec 23, 2025&lt;/strong&gt;: Public disclosure&lt;/li&gt;
-&lt;/ul&gt;</description></item><item><title>Controlling an Elegoo Mars Pro remotely</title><link>https://l9o.dev/posts/controlling-an-elegoo-mars-pro-remotely/</link><pubDate>Sun, 18 Oct 2020 17:25:33 -0400</pubDate><guid>https://l9o.dev/posts/controlling-an-elegoo-mars-pro-remotely/</guid><description>&lt;p&gt;One of the main things I missed on my Elegoo Mars Pro 3D Printer was remote access over WiFi. I wanted to upload files, print and keep track of print status while I’m away from the printer. Luckily, the Elegoo Mars Pro exposes a serial port on some of its motherboard pins, allowing for it to be controlled with a Raspberry Pi Zero W. I wrote a software called &lt;a href="https://github.com/luizribeiro/mariner"&gt;mariner&lt;/a&gt; for controlling it over HTTP and here I document my current setup.&lt;/p&gt;
+&lt;/ul&gt;</description></item><item><title>Controlling an Elegoo Mars Pro remotely</title><link>https://l9o.dev/posts/controlling-an-elegoo-mars-pro-remotely/</link><pubDate>Sun, 18 Oct 2020 17:25:33 -0400</pubDate><guid>https://l9o.dev/posts/controlling-an-elegoo-mars-pro-remotely/</guid><description>&lt;blockquote&gt;
+&lt;p&gt;&lt;em&gt;Update (November 2026):&lt;/em&gt; mariner now lives at &lt;a href="https://github.com/mariner3d/mariner"&gt;mariner3d/mariner&lt;/a&gt; and is maintained by &lt;a href="https://github.com/amd989"&gt;Alejandro Mora&lt;/a&gt;. Check the repo for the latest version and install instructions.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;One of the main things I missed on my Elegoo Mars Pro 3D Printer was remote access over WiFi. I wanted to upload files, print and keep track of print status while I’m away from the printer. Luckily, the Elegoo Mars Pro exposes a serial port on some of its motherboard pins, allowing for it to be controlled with a Raspberry Pi Zero W. I wrote a software called &lt;a href="https://github.com/mariner3d/mariner"&gt;mariner&lt;/a&gt; for controlling it over HTTP and here I document my current setup.&lt;/p&gt;
 &lt;blockquote&gt;
 &lt;p&gt;&lt;em&gt;Disclaimer:&lt;/em&gt; this software and instructions are provided &amp;ldquo;as is&amp;rdquo;, without warranty of any kind. There is no guarantee this will work on your printer, nor that it won’t damage it. Do and use it at your own risk. You should also keep the software behind a firewall. If you need authentication you should set it up with a reverse proxy, as there is no support for authentication on &lt;code&gt;mariner&lt;/code&gt;.&lt;/p&gt;
 &lt;/blockquote&gt;
 &lt;h2 id="what-it-looks-like"&gt;What it looks like&lt;/h2&gt;
-&lt;p&gt;As of this writing, &lt;a href="https://github.com/luizribeiro/mariner"&gt;mariner&lt;/a&gt; supports desktop and mobile browsers and can:&lt;/p&gt;
+&lt;p&gt;As of this writing, &lt;a href="https://github.com/mariner3d/mariner"&gt;mariner&lt;/a&gt; supports desktop and mobile browsers and can:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;Upload files to be printed.&lt;/li&gt;
 &lt;li&gt;Check print status: progress, current layer, time left, etc.&lt;/li&gt;
@@ -177,4 +180,4 @@
 &lt;p&gt;&lt;img src="https://l9o.dev/img/screenshot2.png" alt=""&gt;&lt;/p&gt;
 &lt;p&gt;If something doesn’t work, checking the logs of &lt;code&gt;mariner3d&lt;/code&gt; generally helps:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo journalctl -u mariner3d
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That’s it! I hope this is helpful to someone. If you have questions, bugs to report or want more features on the software. Feel free to create an issue or a pull request on the &lt;a href="https://github.com/luizribeiro/mariner/"&gt;GitHub project&lt;/a&gt;!&lt;/p&gt;</description></item></channel></rss>
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That’s it! I hope this is helpful to someone. If you have questions, bugs to report or want more features on the software. Feel free to create an issue or a pull request on the &lt;a href="https://github.com/mariner3d/mariner/"&gt;GitHub project&lt;/a&gt;!&lt;/p&gt;</description></item></channel></rss>
